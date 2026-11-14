@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e141c">
+<title>Canlı Altyazı Çevirmeni</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #0e141c; --panel: #161f2b; --line: #243244; --fg: #eef2f6; --muted: #8a9aae;
+  --sun: #ffb44a; --sun-ink: #1b1206; --speaker: #ff7aa2; --ok: #6fd3a0; --bad: #ff8a7a;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tr-size: 28px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+.app { max-width: 1100px; margin: 0 auto; display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 760px), (orientation: landscape) and (min-width: 600px) {
+  .app { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
+  header { grid-column: 1 / -1; }
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+h1 span { color: var(--sun); }
+.pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.on i { background: var(--ok); } .pill.err i { background: var(--bad); } .pill.work i { background: var(--sun); }
+
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.stage { position: relative; width: 100%; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid var(--line); }
+.stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.zone { position: absolute; border: 2px solid var(--sun); box-shadow: 0 0 0 9999px rgba(0,0,0,.45); border-radius: 6px; pointer-events: none; }
+.stage .hint { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; color: var(--muted); }
+
+.start { width: 100%; min-height: 64px; border: 0; border-radius: 14px; background: var(--sun); color: var(--sun-ink); font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: .03em; text-transform: uppercase; cursor: pointer; }
+.start.stop { background: var(--panel); color: var(--fg); border: 1px solid var(--line); font-size: 20px; min-height: 52px; }
+.start:focus-visible, button:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+
+.now { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; min-height: 170px; display: flex; flex-direction: column; gap: 8px; transition: opacity .4s; }
+.now.stale { opacity: .45; }
+.now .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.who { font-family: var(--f-display); font-weight: 600; font-size: 18px; letter-spacing: .05em; text-transform: uppercase; color: var(--speaker); }
+.tr { font-size: var(--tr-size); line-height: 1.28; font-weight: 600; text-wrap: pretty; overflow-wrap: anywhere; }
+.en { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.notes { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 4px; font-size: 14px; color: var(--sun); }
+.hist .note { color: var(--sun); }
+
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+summary { cursor: pointer; padding: 12px 14px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+summary::after { content: "▾"; color: var(--muted); }
+details[open] summary::after { content: "▴"; }
+.settings { padding: 0 14px 14px; display: grid; gap: 12px; }
+.row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 44px; align-items: center; gap: 10px; font-size: 13px; }
+.row output { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.row input[type=range] { width: 100%; accent-color: var(--sun); }
+.checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; cursor: pointer; }
+.chip input { accent-color: var(--sun); margin: 0; }
+.debug { display: grid; gap: 6px; }
+.debug canvas { width: 100%; max-height: 90px; object-fit: contain; background: #fff; border-radius: 6px; }
+.debug code { font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.hist-head { display: flex; justify-content: space-between; align-items: center; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.btn { border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); font: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+ul.hist { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.hist li { padding: 10px 0; border-top: 1px solid var(--line); display: grid; gap: 2px; }
+.hist .t { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hist .x { font-size: 16px; }
+.hist .e { font-size: 12px; color: var(--muted); }
+.tip { font-size: 13px; color: var(--muted); margin: 0; }
+.tip b { color: var(--fg); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Canlı <span>Altyazı</span></h1>
+    <div class="pill" id="pill"><i></i><span id="status">Kapalı</span></div>
+  </header>
+
+  <div class="col">
+    <div class="stage" id="stage">
+      <video id="video" playsinline muted></video>
+      <div class="zone" id="zone" hidden></div>
+      <div class="hint" id="hint">Telefonun arka kamerasını monitöre çevir ve <b>&nbsp;Başlat</b>'a bas.</div>
+    </div>
+    <button class="start" id="startBtn" type="button">Başlat</button>
+
+    <details id="setBox">
+      <summary>Okuma alanı ve ayarlar</summary>
+      <div class="settings">
+        <p class="tip">Turuncu çerçeveyi altyazının çıktığı şeride oturt. Çerçeve ne kadar dar olursa okuma o kadar hızlı ve doğru olur.</p>
+        <div class="row"><label for="zTop">Çerçeve üstü</label><input type="range" id="zTop" min="0" max="95" value="62"><output id="oTop"></output></div>
+        <div class="row"><label for="zBot">Çerçeve altı</label><input type="range" id="zBot" min="5" max="100" value="92"><output id="oBot"></output></div>
+        <div class="row"><label for="zSide">Yan boşluk</label><input type="range" id="zSide" min="0" max="40" value="12"><output id="oSide"></output></div>
+        <div class="row" id="zoomRow" hidden><label for="zoom">Kamera yakınlaştırma</label><input type="range" id="zoom" min="1" max="1" step="0.1" value="1"><output id="oZoom"></output></div>
+        <div class="row"><label for="speed">Okuma aralığı</label><input type="range" id="speed" min="300" max="2000" step="100" value="600"><output id="oSpeed"></output></div>
+        <div class="row"><label for="fsize">Yazı boyutu</label><input type="range" id="fsize" min="18" max="48" value="28"><output id="oFsize"></output></div>
+        <div class="checks">
+          <label class="chip"><input type="checkbox" id="optSpeak"> Türkçesini sesli oku</label>
+          <label class="chip"><input type="checkbox" id="optInvert" checked> Beyaz yazı (otomatik ters çevir)</label>
+          <label class="chip"><input type="checkbox" id="optDebug"> Okunan görüntüyü göster</label>
+        </div>
+        <div class="debug" id="debug" hidden>
+          <canvas id="dbg"></canvas>
+          <code id="dbgText">—</code>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="col">
+    <div class="now" id="now" aria-live="polite">
+      <div class="label"><span>Türkçe</span><span id="nowTime"></span></div>
+      <div class="who" id="nowWho" lang="en" hidden></div>
+      <div class="tr" id="nowTr">Başlattığında altyazılar burada otomatik olarak Türkçe çıkacak.</div>
+      <div class="en" id="nowEn">Subtitles will appear here automatically in Turkish.</div>
+      <div class="notes" id="nowNotes" hidden></div>
+    </div>
+    <section>
+      <div class="hist-head"><h2>Geçmiş</h2><button class="btn" id="clearBtn" type="button">Temizle</button></div>
+      <ul class="hist" id="hist"></ul>
+    </section>
+    <p class="tip"><b>İpucu:</b> Oyunda altyazı boyutunu en büyüğe al, altyazı arka planını aç. Telefonu bir tutucuyla monitörün önüne, altyazı şeridini görecek şekilde sabitle ve şarja tak.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const video = $("video"), zone = $("zone"), stage = $("stage");
+  const work = document.createElement("canvas");
+  const wctx = work.getContext("2d", { willReadFrequently: true });
+  const dbg = $("dbg");
+
+  // ---------- Ayarlar (bu cihazda hatırlanır) ----------
+  const SKEY = "canli-altyazi-ayar-v1";
+  const ids = ["zTop", "zBot", "zSide", "speed", "fsize", "optSpeak", "optInvert", "optDebug"];
+  try {
+    const s = JSON.parse(localStorage.getItem(SKEY) || "{}");
+    for (const k of ids) if (k in s) { const el = $(k); if (el.type === "checkbox") el.checked = !!s[k]; else el.value = s[k]; }
+  } catch (e) {}
+  function saveSettings() {
+    const s = {}; for (const k of ids) { const el = $(k); s[k] = el.type === "checkbox" ? el.checked : el.value; }
+    try { localStorage.setItem(SKEY, JSON.stringify(s)); } catch (e) {}
+  }
+  function syncUI() {
+    let top = +$("zTop").value, bot = +$("zBot").value;
+    if (bot - top < 5) { bot = Math.min(100, top + 5); $("zBot").value = bot; }
+    const side = +$("zSide").value;
+    $("oTop").textContent = top + "%"; $("oBot").textContent = bot + "%"; $("oSide").textContent = side + "%";
+    $("oSpeed").textContent = (+$("speed").value / 1000).toFixed(1) + "s";
+    $("oFsize").textContent = $("fsize").value;
+    document.documentElement.style.setProperty("--tr-size", $("fsize").value + "px");
+    Object.assign(zone.style, { top: top + "%", height: (bot - top) + "%", left: side + "%", width: (100 - 2 * side) + "%" });
+    $("debug").hidden = !$("optDebug").checked;
+    saveSettings();
+  }
+  for (const k of ids) $(k).addEventListener("input", syncUI);
+  syncUI();
+
+  // ---------- Durum ----------
+  function setStatus(text, kind) { $("status").textContent = text; $("pill").className = "pill" + (kind ? " " + kind : ""); }
+
+  // ---------- Geçmiş ----------
+  const HKEY = "canli-altyazi-gecmis-v1";
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch (e) {}
+  const hhmm = (t) => new Date(t).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  function renderHist() {
+    const ul = $("hist"); ul.replaceChildren();
+    for (const h of history) {
+      const li = document.createElement("li");
+      const t = document.createElement("div"); t.className = "t"; t.textContent = hhmm(h.t);
+      const x = document.createElement("div"); x.className = "x"; x.textContent = (h.who ? h.who + ": " : "") + h.tr;
+      const e = document.createElement("div"); e.className = "e"; e.textContent = h.en;
+      li.append(t, x, e);
+      if (h.notes && h.notes.length) { const n = document.createElement("div"); n.className = "e note"; n.textContent = h.notes.join(" · "); li.append(n); }
+      ul.append(li);
+    }
+  }
+  $("clearBtn").onclick = () => { history = []; try { localStorage.removeItem(HKEY); } catch (e) {} renderHist(); };
+  renderHist();
+
+  function show(entry) {
+    $("now").classList.remove("stale");
+    $("nowTime").textContent = hhmm(entry.t);
+    $("nowWho").hidden = !entry.who; $("nowWho").textContent = entry.who || "";
+    $("nowTr").textContent = entry.tr; $("nowEn").textContent = entry.en;
+    const nb = $("nowNotes"); nb.replaceChildren();
+    for (const n of entry.notes || []) { const d = document.createElement("div"); d.textContent = n; nb.append(d); }
+    nb.hidden = !(entry.notes && entry.notes.length);
+    history.unshift(entry); history = history.slice(0, 200);
+    try { localStorage.setItem(HKEY, JSON.stringify(history)); } catch (e) {}
+    renderHist();
+    if ($("optSpeak").checked && "speechSynthesis" in window) {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(entry.tr); u.lang = "tr-TR"; u.rate = 1.1;
+      speechSynthesis.speak(u);
+    }
+  }
+
+  // ---------- Çeviri ----------
+  const cache = new Map();
+  async function translate(text) {
+    if (cache.has(text)) return cache.get(text);
+    let out = null;
+    try {
+      const r = await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=" + encodeURIComponent(text));
+      if (r.ok) { const j = await r.json(); out = (j[0] || []).map((s) => s[0]).join("").trim(); }
+    } catch (e) {}
+    if (!out) {
+      try {
+        const r = await fetch("https://api.mymemory.translated.net/get?langpair=en|tr&q=" + encodeURIComponent(text));
+        if (r.ok) { const j = await r.json(); out = j?.responseData?.translatedText?.trim() || null; }
+      } catch (e) {}
+    }
+    if (out) cache.set(text, out);
+    return out;
+  }
+
+  // ---------- Argo sözlüğü (makine çevirisinin kaçırdığı ifadeler) ----------
+  const SLANG = [
+    [/\bthe heat\b|\bheat'?s (on|all over)/i, "the heat", "polis"],
+    [/\bfive-?o\b|\b5-?0\b/i, "five-o", "polis"],
+    [/\bcops?\b|\bpigs\b|\bfeds?\b/i, "cops / pigs / feds", "polis / federal ajanlar"],
+    [/\bsnitch(es|ing)?\b|\brat(ted)? (me |us )?out\b/i, "snitch / rat out", "muhbir / ispiyonlamak"],
+    [/\bscore\b/i, "score", "vurgun, iş (soygun)"],
+    [/\bheist\b/i, "heist", "büyük soygun"],
+    [/\bstash\b/i, "stash", "zula"],
+    [/\bdough\b|\bbread\b|\bbucks\b|\bgrand\b|\bstacks?\b/i, "dough / bread / grand", "para (grand = bin dolar)"],
+    [/\bhomie\b|\bhomeboy\b|\bdawg\b|\bfam\b/i, "homie / dawg / fam", "kanka"],
+    [/\bshorty\b|\bshawty\b/i, "shorty", "sevgili / kız"],
+    [/\bbae\b|\bboo\b/i, "bae / boo", "sevgili"],
+    [/\bain'?t\b/i, "ain't", "değil / yok (sokak ağzı)"],
+    [/\bgonna\b|\bwanna\b|\bgotta\b/i, "gonna / wanna / gotta", "-ecek / istemek / zorunda"],
+    [/\bstrap\b|\bheater\b|\bpacking heat\b/i, "strap / heater", "silah"],
+    [/\bpacking\b|\bstrapped\b/i, "packing / strapped", "silahlı"],
+    [/\bsmoke (him|her|them|'em)\b|\bpop (him|her|them|'em)\b|\bwhack\b|\bclip (him|her)\b/i, "smoke / pop / whack", "öldürmek, vurmak"],
+    [/\bbeef\b/i, "beef", "husumet, kavga"],
+    [/\bthe hood\b|\bon the block\b/i, "the hood / the block", "mahalle"],
+    [/\bcrib\b/i, "crib", "ev"],
+    [/\bwhip\b/i, "whip", "araba"],
+    [/\bgetaway\b/i, "getaway", "kaçış (aracı)"],
+    [/\bfence\b/i, "fence", "çalıntı mal alıcısı"],
+    [/\bthe plug\b|\bmy plug\b/i, "plug", "tedarikçi (çoğu zaman uyuşturucu)"],
+    [/\bdope\b|\bblow\b|\bcoke\b|\bweed\b/i, "dope / product / blow", "uyuşturucu"],
+    [/\blay low\b/i, "lay low", "ortadan kaybolmak, sessiz kalmak"],
+    [/\bdo time\b|\bdoing time\b|\bthe pen\b/i, "do time / the pen", "hapis yatmak / hapishane"],
+    [/\bparole officer\b|\bmy P\.?O\.?\b/i, "PO / parole officer", "şartlı tahliye memuru"],
+    [/\bhustl(e|ing|er)\b/i, "hustle", "üçkağıt / para kazanma çabası"],
+    [/\bmy bad\b/i, "my bad", "pardon, benim hatam"],
+    [/\bno cap\b/i, "no cap", "yalan / yalan yok"],
+    [/\blit\b/i, "lit", "harika, coşkulu"],
+    [/\bsus\b/i, "sus", "şüpheli"],
+    [/\bgoing south\b|\bwent south\b/i, "go south", "işler kötüye gitmek"],
+    [/\bride or die\b/i, "ride or die", "ölümüne sadık"]
+  ];
+  function slangNotes(en) {
+    const out = [];
+    for (const [re, term, meaning] of SLANG) if (re.test(en)) { out.push(term + " = " + meaning); if (out.length >= 3) break; }
+    return out;
+  }
+
+  // ---------- Metin temizleme ve karşılaştırma ----------
+  function cleanLine(s) {
+    s = s.replace(/[|]/g, "I").replace(/[“”]/g, '"').replace(/[‘’`]/g, "'")
+         .replace(/[^A-Za-z0-9'",.?!:;\-…&$% ]/g, " ").replace(/\s+/g, " ").trim();
+    const letters = (s.match(/[A-Za-z]/g) || []).length;
+    if (s.length < 3 || letters / s.length < 0.6) return "";
+    const words = s.split(" ").filter((w) => /[A-Za-z]{2,}/.test(w));
+    if (words.length < 2 && !/^[A-Z][a-z]+[.!?]$/.test(s)) return "";
+    return s;
+  }
+  const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  function similarity(a, b) {
+    a = norm(a).slice(0, 220); b = norm(b).slice(0, 220);
+    if (!a && !b) return 1; if (!a || !b) return 0;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return 1 - prev[b.length] / Math.max(a.length, b.length);
+  }
+  function splitSpeaker(text) {
+    const m = text.match(/^([A-Z][A-Za-z.' ]{1,20}):\s*(.+)$/);
+    return m ? { who: m[1].trim(), body: m[2].trim() } : { who: "", body: text };
+  }
+
+  // ---------- Görüntü hazırlama ----------
+  function grabZone() {
+    const W = video.videoWidth, H = video.videoHeight;
+    if (!W || !H) return null;
+    const top = +$("zTop").value / 100, bot = +$("zBot").value / 100, side = +$("zSide").value / 100;
+    const sx = Math.round(W * side), sw = Math.round(W * (1 - 2 * side));
+    const sy = Math.round(H * top), sh = Math.max(8, Math.round(H * (bot - top)));
+    const scale = Math.min(2.5, Math.max(1, 1400 / sw));
+    work.width = Math.round(sw * scale); work.height = Math.round(sh * scale);
+    wctx.imageSmoothingQuality = "high";
+    wctx.drawImage(video, sx, sy, sw, sh, 0, 0, work.width, work.height);
+    const img = wctx.getImageData(0, 0, work.width, work.height), d = img.data;
+    const hist = new Uint32Array(256); let sum = 0;
+    for (let i = 0; i < d.length; i += 4) { const g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0; d[i] = g; hist[g]++; sum += g; }
+    const n = d.length / 4, mean = sum / n;
+    let acc = 0, lo = 0, hi = 255;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n * 0.02) { lo = v; break; } }
+    acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > n * 0.02) { hi = v; break; } }
+    const range = Math.max(30, hi - lo);
+    const invert = $("optInvert").checked && mean < 150;
+    for (let i = 0; i < d.length; i += 4) {
+      let g = ((d[i] - lo) * 255) / range; g = g < 0 ? 0 : g > 255 ? 255 : g;
+      if (invert) g = 255 - g;
+      d[i] = d[i + 1] = d[i + 2] = g;
+    }
+    wctx.putImageData(img, 0, 0);
+    if ($("optDebug").checked) { dbg.width = work.width; dbg.height = work.height; dbg.getContext("2d").drawImage(work, 0, 0); }
+    return work;
+  }
+
+  // ---------- Ana döngü ----------
+  let stream = null, worker = null, running = false, timer = null;
+  let pending = "", pendingHits = 0, lastShown = "", lastSeenAt = 0;
+
+  async function tick() {
+    if (!running) return;
+    const t0 = performance.now();
+    try {
+      const frame = grabZone();
+      if (frame) {
+        const { data } = await worker.recognize(frame);
+        const lines = (data.lines && data.lines.length ? data.lines.filter((l) => l.confidence >= 55).map((l) => l.text) : (data.confidence >= 55 ? data.text.split("\n") : []))
+          .map(cleanLine).filter(Boolean);
+        const text = lines.join(" ").replace(/\s+/g, " ").trim();
+        if ($("optDebug").checked) $("dbgText").textContent = (text || "(okunabilir yazı yok)") + "  ·  güven " + Math.round(data.confidence || 0);
+        await handleText(text);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    if (running) timer = setTimeout(tick, Math.max(50, +$("speed").value - (performance.now() - t0)));
+  }
+
+  async function handleText(text) {
+    const now = Date.now();
+    if (!text) {
+      pending = ""; pendingHits = 0;
+      if (lastShown && now - lastSeenAt > 4000) { $("now").classList.add("stale"); lastShown = ""; }
+      setStatus("Altyazı bekleniyor", "on");
+      return;
+    }
+    lastSeenAt = now;
+    if (similarity(text, lastShown) > 0.8) { setStatus("Okunuyor", "on"); return; }
+    if (similarity(text, pending) > 0.85) pendingHits++; else { pending = text; pendingHits = 1; }
+    if (pendingHits < 2) return; // aynı yazı iki karede görülünce çevir (titreşimi önler)
+    lastShown = pending; pendingHits = 0;
+    const { who, body } = splitSpeaker(pending);
+    setStatus("Çevriliyor", "work");
+    const tr = await translate(body);
+    if (!tr) { setStatus("Çeviri servisine ulaşılamadı", "err"); lastShown = ""; return; }
+    show({ t: now, who, en: body, tr, notes: slangNotes(body) });
+    setStatus("Okunuyor", "on");
+  }
+
+  // ---------- Başlat / Durdur ----------
+  let wakeLock = null;
+  async function keepAwake() { try { wakeLock = await navigator.wakeLock?.request("screen"); } catch (e) {} }
+  document.addEventListener("visibilitychange", () => { if (running && document.visibilityState === "visible") keepAwake(); });
+
+  async function start() {
+    const btn = $("startBtn");
+    btn.disabled = true;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("Bu tarayıcı kamerayı desteklemiyor. Chrome veya Safari ile aç.");
+      setStatus("Kamera açılıyor", "work");
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      });
+      video.srcObject = stream; await video.play();
+      const W = video.videoWidth, H = video.videoHeight;
+      if (W && H) stage.style.aspectRatio = W + " / " + H;
+      $("hint").hidden = true; zone.hidden = false;
+      const track = stream.getVideoTracks()[0];
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+      if (caps.zoom) {
+        const z = $("zoom"); z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step || 0.1;
+        z.value = track.getSettings().zoom || caps.zoom.min; $("zoomRow").hidden = false;
+        $("oZoom").textContent = (+z.value).toFixed(1) + "x";
+        z.oninput = () => { $("oZoom").textContent = (+z.value).toFixed(1) + "x"; track.applyConstraints({ advanced: [{ zoom: +z.value }] }).catch(() => {}); };
+      }
+      if (!worker) {
+        setStatus("Okuma motoru yükleniyor (ilk sefer ~10 sn)", "work");
+        if (typeof Tesseract === "undefined") throw new Error("Okuma motoru indirilemedi. İnternet bağlantını kontrol edip sayfayı yenile.");
+        worker = await Promise.race([
+          Tesseract.createWorker("eng", 1),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("Okuma motoru 90 saniyede yüklenemedi. Bağlantını kontrol edip sayfayı yenile.")), 90000))
+        ]);
+        await worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
+      }
+      running = true; keepAwake();
+      btn.textContent = "Durdur"; btn.classList.add("stop");
+      setStatus("Okunuyor", "on");
+      $("setBox").open = !localStorage.getItem(SKEY + "-seen");
+      try { localStorage.setItem(SKEY + "-seen", "1"); } catch (e) {}
+      tick();
+    } catch (e) {
+      const msg = e && e.name === "NotAllowedError" ? "Kamera izni verilmedi. Tarayıcı ayarlarından bu siteye kamera izni ver." : (e && e.message) || "Başlatılamadı";
+      setStatus("Hata", "err"); $("nowTr").textContent = msg; $("nowEn").textContent = "";
+      stop();
+    } finally { btn.disabled = false; }
+  }
+  function stop() {
+    running = false; clearTimeout(timer);
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+    try { wakeLock?.release(); } catch (e) {}
+    const btn = $("startBtn"); btn.textContent = "Başlat"; btn.classList.remove("stop");
+    zone.hidden = true; $("hint").hidden = false;
+    if ($("status").textContent !== "Hata") setStatus("Kapalı");
+  }
+  $("startBtn").onclick = () => (running ? stop() : start());
+})();
+</script>
+</body>
+</html>
