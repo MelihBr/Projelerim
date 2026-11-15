@@ -1,16 +1,21 @@
 package com.melih.altyazi
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Bundle
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
+import android.text.InputType
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -35,25 +40,34 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class MainActivity : ComponentActivity() {
+
+    /** Bir altyazı satırı. Önce hızlı çeviri gelir, yapay zekâ çevirisi gelince güncellenir. */
+    private class Entry(val id: Int, val time: String, var who: String, var en: String, var tr: String, var notes: List<String>, var ai: Boolean = false)
 
     private lateinit var previewView: PreviewView
     private lateinit var overlay: OverlayView
     private lateinit var seenView: TextView
     private lateinit var statusView: TextView
     private lateinit var whoView: TextView
+    private lateinit var badgeView: TextView
     private lateinit var trView: TextView
     private lateinit var enView: TextView
     private lateinit var notesView: TextView
     private lateinit var historyView: TextView
+    private lateinit var historyScroll: ScrollView
     private lateinit var card: View
     private lateinit var speakBox: CheckBox
 
     private val prefs by lazy { getSharedPreferences("ayarlar", MODE_PRIVATE) }
+    private val memory by lazy { StoryMemory(getSharedPreferences("hafiza", MODE_PRIVATE)) }
     private val analysisExecutor = Executors.newSingleThreadExecutor()
+    private val aiExecutor = Executors.newSingleThreadExecutor()
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val translator = SubtitleTranslator()
+    private var claude: ClaudeTranslator? = null
     private var camera: Camera? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -66,7 +80,10 @@ class MainActivity : ComponentActivity() {
     private var pendingHits = 0
     private var lastShown = ""
     private var lastSeenAt = 0L
-    private val history = ArrayDeque<String>()
+    private val history = ArrayDeque<Entry>()
+    private var current: Entry? = null
+    private val nextId = AtomicInteger(0)
+    @Volatile private var newestId = 0
     private val clock = SimpleDateFormat("HH:mm:ss", Locale("tr", "TR"))
 
     private val askCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
@@ -83,10 +100,12 @@ class MainActivity : ComponentActivity() {
         seenView = findViewById(R.id.seen)
         statusView = findViewById(R.id.status)
         whoView = findViewById(R.id.who)
+        badgeView = findViewById(R.id.badge)
         trView = findViewById(R.id.tr)
         enView = findViewById(R.id.en)
         notesView = findViewById(R.id.notes)
         historyView = findViewById(R.id.history)
+        historyScroll = findViewById(R.id.historyScroll)
         card = findViewById(R.id.card)
         speakBox = findViewById(R.id.speak)
 
@@ -106,13 +125,14 @@ class MainActivity : ComponentActivity() {
         speakBox.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("speak", on).apply() }
 
         val fontBar = findViewById<SeekBar>(R.id.fontSize)
-        fontBar.progress = prefs.getInt("font", 10)
+        fontBar.progress = prefs.getInt("font", 8)
         applyFont(fontBar.progress)
         fontBar.setOnSeekBarChangeListener(simpleSeek { p -> applyFont(p); prefs.edit().putInt("font", p).apply() })
 
         findViewById<Button>(R.id.clear).setOnClickListener {
-            history.clear(); historyView.text = ""
+            history.clear(); renderHistory()
         }
+        findViewById<Button>(R.id.aiBtn).setOnClickListener { showAiDialog() }
 
         tts = TextToSpeech(this) { st ->
             if (st == TextToSpeech.SUCCESS) {
@@ -121,9 +141,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        translator.prepareOffline { ok ->
-            runOnUiThread { if (ok) setStatusBase("Çevrimdışı çeviri hazır") }
-        }
+        translator.prepareOffline { ok -> runOnUiThread { if (ok) refreshStatus() } }
+        setupClaude()
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera()
@@ -132,15 +151,73 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ---------- Yapay zekâ ayarları ----------
+
+    private fun setupClaude() {
+        val key = prefs.getString("apiKey", "")!!.trim()
+        val on = prefs.getBoolean("aiOn", true)
+        val model = prefs.getString("model", DEFAULT_MODEL)!!.trim().ifEmpty { DEFAULT_MODEL }
+        claude = if (on && key.isNotEmpty()) {
+            try { ClaudeTranslator(key, model) } catch (e: Exception) { null }
+        } else null
+        refreshStatus()
+    }
+
+    private fun showAiDialog() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0) }
+        val onBox = CheckBox(this).apply { text = "Yapay zekâ çevirisi açık"; isChecked = prefs.getBoolean("aiOn", true) }
+        val keyInput = EditText(this).apply {
+            hint = "Anthropic API anahtarı (sk-ant-...)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(prefs.getString("apiKey", ""))
+        }
+        val modelInput = EditText(this).apply {
+            hint = DEFAULT_MODEL
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(prefs.getString("model", DEFAULT_MODEL))
+        }
+        val modelHint = TextView(this).apply {
+            textSize = 12f
+            text = "Model: claude-opus-5-5 en iyi çeviriyi yapar. Daha hızlı ve çok daha ucuz olması için claude-haiku-5-5 yazabilirsin."
+        }
+        val mem = TextView(this).apply {
+            textSize = 12f
+            setPadding(0, pad / 2, 0, 0)
+            text = "Hikâye hafızası: ${memory.stats()}\n\n" + memory.summary.ifEmpty { "" }
+        }
+        box.addView(onBox); box.addView(keyInput); box.addView(modelInput); box.addView(modelHint); box.addView(mem)
+        val scroll = ScrollView(this).apply { addView(box) }
+
+        AlertDialog.Builder(this)
+            .setTitle("Hikâyeyi bilen çeviri")
+            .setView(scroll)
+            .setPositiveButton("Kaydet") { _, _ ->
+                prefs.edit()
+                    .putBoolean("aiOn", onBox.isChecked)
+                    .putString("apiKey", keyInput.text.toString().trim())
+                    .putString("model", modelInput.text.toString().trim().ifEmpty { DEFAULT_MODEL })
+                    .apply()
+                setupClaude()
+            }
+            .setNeutralButton("Hafızayı sıfırla") { _, _ -> memory.reset(); refreshStatus() }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    private fun refreshStatus() {
+        val parts = ArrayList<String>()
+        parts.add(if (camera != null) "Okunuyor" else "Kamera açılıyor")
+        parts.add(if (claude != null) "yapay zekâ açık (${memory.stats()})" else "hızlı çeviri")
+        if (translator.offlineReady) parts.add("çevrimdışı yedek hazır")
+        statusView.text = parts.joinToString(" · ")
+    }
+
     private fun applyFont(p: Int) {
         trView.textSize = 16f + p
     }
 
-    private var statusBase = ""
-    private fun setStatusBase(s: String) {
-        statusBase = s
-        statusView.text = s
-    }
+    // ---------- Kamera ----------
 
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
@@ -172,9 +249,9 @@ class MainActivity : ComponentActivity() {
                 provider.unbindAll()
                 camera = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
                 setupCameraControls()
-                setStatusBase(if (translator.offlineReady) "Okunuyor · çevrimdışı çeviri hazır" else "Okunuyor")
+                refreshStatus()
             } catch (e: Exception) {
-                setStatusBase("Kamera açılamadı: ${e.message}")
+                statusView.text = "Kamera açılamadı: ${e.message}"
             }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -252,6 +329,8 @@ class MainActivity : ComponentActivity() {
         handle(joined)
     }
 
+    // ---------- Çeviri akışı ----------
+
     private fun handle(text: String) {
         val now = SystemClock.elapsedRealtime()
         if (text.isEmpty()) {
@@ -271,43 +350,93 @@ class MainActivity : ComponentActivity() {
         pendingHits = 0
         val (who, body) = TextUtil.splitSpeaker(lastShown)
         statusView.text = "Çevriliyor…"
-        translator.translate(body) { tr ->
+        translator.translate(body) { quick ->
             runOnUiThread {
-                if (tr == null) {
+                if (quick == null && claude == null) {
                     statusView.text = "Çeviri yapılamadı (internet yok ve çevrimdışı model inmemiş)"
                     lastShown = ""
-                } else {
-                    show(who, body, tr)
-                    statusView.text = statusBase
+                    return@runOnUiThread
                 }
+                val ai = claude
+                val entry = Entry(
+                    nextId.incrementAndGet(), clock.format(Date()), who, body, quick ?: "…",
+                    if (ai == null) Slang.notes(body) else emptyList()
+                )
+                newestId = entry.id
+                addEntry(entry)
+                refreshStatus()
+                if (ai != null) askClaude(ai, entry, quick ?: "")
+                else memory.addLine(StoryMemory.Line(who, body, entry.tr))
             }
         }
     }
 
-    private fun show(who: String, en: String, tr: String) {
-        card.alpha = 1f
-        whoView.visibility = if (who.isEmpty()) View.GONE else View.VISIBLE
-        whoView.text = who
-        trView.text = tr
-        enView.text = en
-        val notes = Slang.notes(en)
-        notesView.visibility = if (notes.isEmpty()) View.GONE else View.VISIBLE
-        notesView.text = notes.joinToString("\n")
-
-        val time = clock.format(Date())
-        val entry = buildString {
-            append(time).append("  ")
-            if (who.isNotEmpty()) append(who).append(": ")
-            append(tr).append("\n      ").append(en)
-            if (notes.isNotEmpty()) append("\n      ").append(notes.joinToString(" · "))
+    private fun askClaude(ai: ClaudeTranslator, entry: Entry, quick: String) {
+        aiExecutor.execute {
+            // Sıra birikirse eski satırları atla; sadece en yeni iki satır önemli.
+            if (newestId - entry.id > 1) {
+                memory.addLine(StoryMemory.Line(entry.who, entry.en, entry.tr))
+                return@execute
+            }
+            val res = try { ai.translate(entry.who, entry.en, quick, memory) } catch (e: Exception) { null }
+            if (res != null) {
+                res.glossary.forEach { (en, tr) -> memory.addGlossary(en, tr) }
+                memory.addLine(StoryMemory.Line(entry.who, res.enFixed, res.tr))
+            } else {
+                memory.addLine(StoryMemory.Line(entry.who, entry.en, entry.tr))
+            }
+            runOnUiThread {
+                if (res != null) {
+                    entry.tr = res.tr; entry.en = res.enFixed; entry.notes = res.notes; entry.ai = true
+                    if (current === entry) renderCurrent(entry, speak = false)
+                    renderHistory()
+                } else if (entry.tr == "…") {
+                    entry.tr = "(çeviri alınamadı)"
+                    if (current === entry) renderCurrent(entry, speak = false)
+                }
+                refreshStatus()
+            }
+            maybeUpdateSummary(ai)
         }
-        history.addFirst(entry)
+    }
+
+    private fun maybeUpdateSummary(ai: ClaudeTranslator) {
+        val lines = memory.takeLinesForSummary() ?: return
+        val s = try { ai.updateSummary(memory.summary, lines) } catch (e: Exception) { null }
+        if (s != null) memory.setSummary(s)
+    }
+
+    private fun addEntry(e: Entry) {
+        history.addFirst(e)
         while (history.size > 150) history.removeLast()
-        historyView.text = history.joinToString("\n\n")
+        current = e
+        renderCurrent(e, speak = true)
+        renderHistory()
+    }
 
-        if (speakBox.isChecked && ttsReady) {
-            tts?.speak(tr, TextToSpeech.QUEUE_FLUSH, null, "altyazi")
+    private fun renderCurrent(e: Entry, speak: Boolean) {
+        card.alpha = 1f
+        whoView.text = e.who
+        badgeView.text = if (e.ai) "yapay zekâ" else if (claude != null) "hızlı · düzeltiliyor" else ""
+        trView.text = e.tr
+        enView.text = e.en
+        notesView.visibility = if (e.notes.isEmpty()) View.GONE else View.VISIBLE
+        notesView.text = e.notes.joinToString("\n")
+        if (speak && speakBox.isChecked && ttsReady && e.tr != "…") {
+            tts?.speak(e.tr, TextToSpeech.QUEUE_FLUSH, null, "altyazi")
         }
+    }
+
+    private fun renderHistory() {
+        historyView.text = history.joinToString("\n\n") { e ->
+            buildString {
+                append(e.time).append("  ")
+                if (e.who.isNotEmpty()) append(e.who).append(": ")
+                append(e.tr).append("\n      ").append(e.en)
+                if (e.notes.isNotEmpty()) append("\n      ").append(e.notes.joinToString(" · "))
+            }
+        }
+        historyScroll.scrollTo(0, 0)
     }
 
     private fun simpleSeek(onChange: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
@@ -319,8 +448,13 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         analysisExecutor.shutdown()
+        aiExecutor.shutdown()
         recognizer.close()
         translator.close()
         tts?.shutdown()
+    }
+
+    companion object {
+        const val DEFAULT_MODEL = "claude-opus-5-5"
     }
 }
