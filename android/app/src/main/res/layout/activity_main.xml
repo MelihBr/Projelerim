@@ -8,6 +8,7 @@
 
     <!-- Sol: kamera ve okuma alanı -->
     <LinearLayout
+        android:id="@+id/leftCol"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1.05"
@@ -164,6 +165,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/controls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
@@ -197,9 +199,22 @@
                 android:focusable="false"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
-                android:text="Yapay zekâ"
+                android:text="Ayarlar"
                 android:textAllCaps="false"
                 android:textColor="@color/sun"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/simpleBtn"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="false"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:text="Sade mod"
+                android:textAllCaps="false"
+                android:textColor="@color/fg"
                 android:textSize="13sp" />
 
             <Button
@@ -215,6 +230,17 @@
                 android:textColor="@color/muted"
                 android:textSize="13sp" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/simpleHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="Normal görünüme dönmek için altyazıya dokun"
+            android:textColor="@color/muted"
+            android:textSize="11sp"
+            android:visibility="gone" />
 
         <ScrollView
             android:id="@+id/historyScroll"

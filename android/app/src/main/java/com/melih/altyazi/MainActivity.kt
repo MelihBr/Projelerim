@@ -76,7 +76,8 @@ class MainActivity : ComponentActivity() {
 
     @Volatile private var busy = false
     private var lastRun = 0L
-    private val intervalMs = 350L
+    private val intervalMs = 250L
+    private var simpleMode = false
 
     private var pending = ""
     private var pendingHits = 0
@@ -135,10 +136,13 @@ class MainActivity : ComponentActivity() {
             history.clear(); renderHistory()
         }
         findViewById<Button>(R.id.aiBtn).setOnClickListener { showAiDialog() }
+        findViewById<Button>(R.id.simpleBtn).setOnClickListener { setSimple(true) }
+        card.setOnClickListener { if (simpleMode) setSimple(false) }
 
         tts = TextToSpeech(this) { st ->
             if (st == TextToSpeech.SUCCESS) {
                 tts?.language = Locale("tr", "TR")
+                tts?.setSpeechRate(prefs.getInt("ttsRate", 16) / 10f)
                 ttsReady = true
             }
         }
@@ -204,7 +208,12 @@ class MainActivity : ComponentActivity() {
             setPadding(0, pad / 2, 0, 0)
             text = "Hikâye hafızası: ${memory.stats()}\n\n" + memory.summary
         }
-        listOf(onBox, group, keyInput, modelInput, help, mem).forEach { box.addView(it) }
+        val rateLabel = TextView(this).apply { setPadding(0, pad / 2, 0, 0) }
+        val rateBar = SeekBar(this).apply { max = 15; progress = prefs.getInt("ttsRate", 16) - 5 }
+        fun showRate() { rateLabel.text = "Sesli okuma hızı: ${"%.1f".format((rateBar.progress + 5) / 10f)}x" }
+        showRate()
+        rateBar.setOnSeekBarChangeListener(simpleSeek { showRate() })
+        listOf(onBox, group, keyInput, modelInput, help, rateLabel, rateBar, mem).forEach { box.addView(it) }
         val scroll = ScrollView(this).apply { addView(box) }
 
         AlertDialog.Builder(this)
@@ -220,7 +229,9 @@ class MainActivity : ComponentActivity() {
                     ed.putString("geminiKey", keyInput.text.toString().trim())
                         .putString("geminiModel", modelInput.text.toString().trim().ifEmpty { DEFAULT_GEMINI })
                 }
+                ed.putInt("ttsRate", rateBar.progress + 5)
                 ed.apply()
+                tts?.setSpeechRate((rateBar.progress + 5) / 10f)
                 setupClaude()
             }
             .setNeutralButton("Hafızayı sıfırla") { _, _ -> memory.reset(); refreshStatus() }
@@ -239,7 +250,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyFont(p: Int) {
-        trView.textSize = 16f + p
+        trView.textSize = 16f + p + (if (simpleMode) 14f else 0f)
+    }
+
+    /** Sade mod: sadece büyük Türkçe altyazı kalır. Kamera arka planda okumaya devam eder. */
+    private fun setSimple(on: Boolean) {
+        simpleMode = on
+        val hide = if (on) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.leftCol).visibility = hide
+        findViewById<View>(R.id.controls).visibility = hide
+        statusView.visibility = hide
+        historyScroll.visibility = hide
+        findViewById<View>(R.id.simpleHint).visibility = if (on) View.VISIBLE else View.GONE
+        trView.maxLines = if (on) 8 else 5
+        applyFont(prefs.getInt("font", 8))
     }
 
     // ---------- Kamera ----------
