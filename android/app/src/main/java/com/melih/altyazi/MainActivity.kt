@@ -15,6 +15,8 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
@@ -67,7 +69,7 @@ class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val translator = SubtitleTranslator()
-    private var claude: ClaudeTranslator? = null
+    private var aiTr: AiTranslator? = null
     private var camera: Camera? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -154,11 +156,15 @@ class MainActivity : ComponentActivity() {
     // ---------- Yapay zekâ ayarları ----------
 
     private fun setupClaude() {
-        val key = prefs.getString("apiKey", "")!!.trim()
         val on = prefs.getBoolean("aiOn", true)
-        val model = prefs.getString("model", DEFAULT_MODEL)!!.trim().ifEmpty { DEFAULT_MODEL }
-        claude = if (on && key.isNotEmpty()) {
-            try { ClaudeTranslator(key, model) } catch (e: Exception) { null }
+        val provider = prefs.getString("provider", "gemini")!!
+        val key = prefs.getString(if (provider == "claude") "apiKey" else "geminiKey", "")!!.trim()
+        val def = if (provider == "claude") DEFAULT_MODEL else DEFAULT_GEMINI
+        val model = prefs.getString(if (provider == "claude") "model" else "geminiModel", def)!!.trim().ifEmpty { def }
+        aiTr = if (on && key.isNotEmpty()) {
+            try {
+                if (provider == "claude") ClaudeTranslator(key, model) else GeminiTranslator(key, model)
+            } catch (e: Exception) { null }
         } else null
         refreshStatus()
     }
@@ -167,37 +173,54 @@ class MainActivity : ComponentActivity() {
         val pad = (16 * resources.displayMetrics.density).toInt()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0) }
         val onBox = CheckBox(this).apply { text = "Yapay zekâ çevirisi açık"; isChecked = prefs.getBoolean("aiOn", true) }
-        val keyInput = EditText(this).apply {
-            hint = "Anthropic API anahtarı (sk-ant-...)"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setText(prefs.getString("apiKey", ""))
+        val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val rGemini = RadioButton(this).apply { id = View.generateViewId(); text = "Gemini (ücretsiz)" }
+        val rClaude = RadioButton(this).apply { id = View.generateViewId(); text = "Claude (ücretli)" }
+        group.addView(rGemini); group.addView(rClaude)
+        val keyInput = EditText(this).apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        val modelInput = EditText(this).apply { inputType = InputType.TYPE_CLASS_TEXT }
+        val help = TextView(this).apply { textSize = 12f; setTextIsSelectable(true) }
+
+        fun fill(claudeSel: Boolean) {
+            if (claudeSel) {
+                keyInput.hint = "Anthropic API anahtarı (sk-ant-...)"
+                keyInput.setText(prefs.getString("apiKey", ""))
+                modelInput.setText(prefs.getString("model", DEFAULT_MODEL))
+                help.text = "Anahtar: console.anthropic.com (ücretli). Model: claude-opus-5-5 en iyisi, claude-haiku-5-5 hızlı ve ucuz."
+            } else {
+                keyInput.hint = "Gemini API anahtarı (AIza...)"
+                keyInput.setText(prefs.getString("geminiKey", ""))
+                modelInput.setText(prefs.getString("geminiModel", DEFAULT_GEMINI))
+                help.text = "Ücretsiz anahtar: aistudio.google.com/apikey adresinde Google hesabınla gir, \"Create API key\" de. Kart istemez.\nModel: $DEFAULT_GEMINI (hızlı, günlük sınırı yüksek) ya da gemini-flash-latest (daha iyi, sınırı düşük)."
+            }
         }
-        val modelInput = EditText(this).apply {
-            hint = DEFAULT_MODEL
-            inputType = InputType.TYPE_CLASS_TEXT
-            setText(prefs.getString("model", DEFAULT_MODEL))
-        }
-        val modelHint = TextView(this).apply {
-            textSize = 12f
-            text = "Model: claude-opus-5-5 en iyi çeviriyi yapar. Daha hızlı ve çok daha ucuz olması için claude-haiku-5-5 yazabilirsin."
-        }
+        val claudeNow = prefs.getString("provider", "gemini") == "claude"
+        (if (claudeNow) rClaude else rGemini).isChecked = true
+        fill(claudeNow)
+        group.setOnCheckedChangeListener { _, checked -> fill(checked == rClaude.id) }
+
         val mem = TextView(this).apply {
             textSize = 12f
             setPadding(0, pad / 2, 0, 0)
-            text = "Hikâye hafızası: ${memory.stats()}\n\n" + memory.summary.ifEmpty { "" }
+            text = "Hikâye hafızası: ${memory.stats()}\n\n" + memory.summary
         }
-        box.addView(onBox); box.addView(keyInput); box.addView(modelInput); box.addView(modelHint); box.addView(mem)
+        listOf(onBox, group, keyInput, modelInput, help, mem).forEach { box.addView(it) }
         val scroll = ScrollView(this).apply { addView(box) }
 
         AlertDialog.Builder(this)
             .setTitle("Hikâyeyi bilen çeviri")
             .setView(scroll)
             .setPositiveButton("Kaydet") { _, _ ->
-                prefs.edit()
-                    .putBoolean("aiOn", onBox.isChecked)
-                    .putString("apiKey", keyInput.text.toString().trim())
-                    .putString("model", modelInput.text.toString().trim().ifEmpty { DEFAULT_MODEL })
-                    .apply()
+                val claudeSel = rClaude.isChecked
+                val ed = prefs.edit().putBoolean("aiOn", onBox.isChecked).putString("provider", if (claudeSel) "claude" else "gemini")
+                if (claudeSel) {
+                    ed.putString("apiKey", keyInput.text.toString().trim())
+                        .putString("model", modelInput.text.toString().trim().ifEmpty { DEFAULT_MODEL })
+                } else {
+                    ed.putString("geminiKey", keyInput.text.toString().trim())
+                        .putString("geminiModel", modelInput.text.toString().trim().ifEmpty { DEFAULT_GEMINI })
+                }
+                ed.apply()
                 setupClaude()
             }
             .setNeutralButton("Hafızayı sıfırla") { _, _ -> memory.reset(); refreshStatus() }
@@ -208,7 +231,9 @@ class MainActivity : ComponentActivity() {
     private fun refreshStatus() {
         val parts = ArrayList<String>()
         parts.add(if (camera != null) "Okunuyor" else "Kamera açılıyor")
-        parts.add(if (claude != null) "yapay zekâ açık (${memory.stats()})" else "hızlı çeviri")
+        val ai = aiTr
+        parts.add(if (ai != null) "yapay zekâ açık (${memory.stats()})" else "hızlı çeviri")
+        ai?.lastProblem?.let { parts.add(it) }
         if (translator.offlineReady) parts.add("çevrimdışı yedek hazır")
         statusView.text = parts.joinToString(" · ")
     }
@@ -352,12 +377,12 @@ class MainActivity : ComponentActivity() {
         statusView.text = "Çevriliyor…"
         translator.translate(body) { quick ->
             runOnUiThread {
-                if (quick == null && claude == null) {
+                if (quick == null && aiTr == null) {
                     statusView.text = "Çeviri yapılamadı (internet yok ve çevrimdışı model inmemiş)"
                     lastShown = ""
                     return@runOnUiThread
                 }
-                val ai = claude
+                val ai = aiTr
                 val entry = Entry(
                     nextId.incrementAndGet(), clock.format(Date()), who, body, quick ?: "…",
                     if (ai == null) Slang.notes(body) else emptyList()
@@ -371,7 +396,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun askClaude(ai: ClaudeTranslator, entry: Entry, quick: String) {
+    private fun askClaude(ai: AiTranslator, entry: Entry, quick: String) {
         aiExecutor.execute {
             // Sıra birikirse eski satırları atla; sadece en yeni iki satır önemli.
             if (newestId - entry.id > 1) {
@@ -400,7 +425,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun maybeUpdateSummary(ai: ClaudeTranslator) {
+    private fun maybeUpdateSummary(ai: AiTranslator) {
         val lines = memory.takeLinesForSummary() ?: return
         val s = try { ai.updateSummary(memory.summary, lines) } catch (e: Exception) { null }
         if (s != null) memory.setSummary(s)
@@ -417,7 +442,7 @@ class MainActivity : ComponentActivity() {
     private fun renderCurrent(e: Entry, speak: Boolean) {
         card.alpha = 1f
         whoView.text = e.who
-        badgeView.text = if (e.ai) "yapay zekâ" else if (claude != null) "hızlı · düzeltiliyor" else ""
+        badgeView.text = if (e.ai) "yapay zekâ" else if (aiTr != null) "hızlı · düzeltiliyor" else ""
         trView.text = e.tr
         enView.text = e.en
         notesView.visibility = if (e.notes.isEmpty()) View.GONE else View.VISIBLE
@@ -456,5 +481,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val DEFAULT_MODEL = "claude-opus-5-5"
+        const val DEFAULT_GEMINI = "gemini-flash-lite-latest"
     }
 }
