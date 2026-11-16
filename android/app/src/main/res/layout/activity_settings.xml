@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/back"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="‹ Geri" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="Ayarlar"
+            android:textColor="@color/fg"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="24dp">
+
+            <!-- Sol sütun -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/SettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout style="@style/SettingsCardBody">
+
+                        <TextView style="@style/SettingsTitle" android:text="Kamera" />
+
+                        <TextView
+                            style="@style/SettingsHelp"
+                            android:text="Telefonu monitöre çevirip okuma alanını, yakınlaştırmayı ve parlaklığı ayarla." />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/cameraBtn"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Kamerayı ve okuma alanını ayarla" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/batterySave"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="Pil tasarrufu (altyazı yokken daha seyrek oku)" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/SettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout style="@style/SettingsCardBody">
+
+                        <TextView style="@style/SettingsTitle" android:text="Görünüm" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/showEnSimple"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Sade modda İngilizce aslını göster" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/showNotes"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Argo ve kültür notlarını göster" />
+
+                        <TextView
+                            android:id="@+id/fontLabel"
+                            style="@style/SettingsHelp"
+                            android:layout_marginTop="8dp"
+                            android:text="Yazı boyutu" />
+
+                        <com.google.android.material.slider.Slider
+                            android:id="@+id/fontSlider"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:stepSize="1"
+                            android:valueFrom="0"
+                            android:valueTo="30"
+                            app:labelBehavior="gone" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/speak"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Türkçesini sesli oku" />
+
+                        <TextView
+                            android:id="@+id/rateLabel"
+                            style="@style/SettingsHelp"
+                            android:text="Okuma hızı" />
+
+                        <com.google.android.material.slider.Slider
+                            android:id="@+id/rateSlider"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:stepSize="1"
+                            android:valueFrom="5"
+                            android:valueTo="20"
+                            app:labelBehavior="gone" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Sağ sütun -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/SettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout style="@style/SettingsCardBody">
+
+                        <TextView style="@style/SettingsTitle" android:text="Hızlı çeviri (DeepL)" />
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="DeepL API anahtarı"
+                            app:endIconMode="password_toggle"
+                            app:helperText="Sonu :fx ile biter. Boş bırakırsan Google kullanılır.">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/deeplKey"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPassword"
+                                android:singleLine="true" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/SettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout style="@style/SettingsCardBody">
+
+                        <TextView style="@style/SettingsTitle" android:text="Hikâyeyi bilen düzeltme" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/aiOn"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Yapay zekâ ile düzelt" />
+
+                        <com.google.android.material.button.MaterialButtonToggleGroup
+                            android:id="@+id/providerGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            app:selectionRequired="true"
+                            app:singleSelection="true">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/provGemini"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Gemini (ücretsiz)" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/provClaude"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Claude (ücretli)" />
+                        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/aiKeyLayout"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:hint="API anahtarı"
+                            app:endIconMode="password_toggle">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/aiKey"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPassword"
+                                android:singleLine="true" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:hint="Model">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/aiModel"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:singleLine="true" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView
+                            android:id="@+id/aiHelp"
+                            style="@style/SettingsHelp"
+                            android:textIsSelectable="true" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/SettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout style="@style/SettingsCardBody">
+
+                        <TextView style="@style/SettingsTitle" android:text="Hikâye hafızası" />
+
+                        <TextView
+                            android:id="@+id/memText"
+                            style="@style/SettingsHelp"
+                            android:textIsSelectable="true" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/resetMem"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="Hafızayı sıfırla" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -21,6 +21,12 @@ class StoryMemory(private val prefs: SharedPreferences) {
 
     init { load() }
 
+    /** Ayarlar ekranında sıfırlandıysa diskteki hâli yeniden okur. */
+    @Synchronized fun reload() {
+        summary = ""; glossary.clear(); recent.clear(); pendingForSummary.clear(); sinceSummary = 0
+        load()
+    }
+
     @Synchronized fun addLine(l: Line) {
         recent.addLast(l)
         while (recent.size > 24) recent.removeFirst()

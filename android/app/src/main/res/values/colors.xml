@@ -1,8 +1,12 @@
 <resources>
-    <color name="bg">#FF0E141C</color>
-    <color name="panel">#FF161F2B</color>
-    <color name="fg">#FFEEF2F6</color>
-    <color name="muted">#FF8A9AAE</color>
+    <color name="bg">#FF0B1017</color>
+    <color name="panel">#FF141C27</color>
+    <color name="panel2">#FF1B2533</color>
+    <color name="outline">#FF263345</color>
+    <color name="fg">#FFF1F4F8</color>
+    <color name="muted">#FF8C9BAF</color>
     <color name="sun">#FFFFB44A</color>
+    <color name="sunDeep">#FF3A2A12</color>
+    <color name="sunInk">#FF1B1206</color>
     <color name="speaker">#FFFF7AA2</color>
 </resources>

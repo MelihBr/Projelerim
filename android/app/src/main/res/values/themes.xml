@@ -1,9 +1,23 @@
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+    <style name="AppTheme" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/sun</item>
+        <item name="colorOnPrimary">@color/sunInk</item>
+        <item name="colorPrimaryContainer">@color/sunDeep</item>
+        <item name="colorOnPrimaryContainer">@color/sun</item>
+        <item name="colorSecondary">@color/speaker</item>
+        <item name="colorSecondaryContainer">@color/panel2</item>
+        <item name="colorOnSecondaryContainer">@color/fg</item>
+        <item name="colorSurface">@color/bg</item>
+        <item name="colorOnSurface">@color/fg</item>
+        <item name="colorOnSurfaceVariant">@color/muted</item>
+        <item name="colorSurfaceContainerLow">@color/panel</item>
+        <item name="colorSurfaceContainer">@color/panel</item>
+        <item name="colorSurfaceContainerHigh">@color/panel2</item>
+        <item name="colorSurfaceContainerHighest">@color/panel2</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="colorOutlineVariant">@color/outline</item>
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>
-        <item name="android:colorAccent">@color/sun</item>
-        <item name="android:textColorPrimary">@color/fg</item>
     </style>
 </resources>
