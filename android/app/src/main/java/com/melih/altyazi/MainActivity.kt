@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class MainActivity : ComponentActivity() {
 
     /** Bir altyazı satırı. Önce hızlı çeviri gelir, yapay zekâ çevirisi gelince güncellenir. */
-    private class Entry(val id: Int, val time: String, var who: String, var en: String, var tr: String, var notes: List<String>, var ai: Boolean = false)
+    private class Entry(val id: Int, val time: String, var who: String, var en: String, var tr: String, var notes: List<String>, var ai: Boolean = false, val engine: String = "")
 
     private lateinit var previewView: PreviewView
     private lateinit var overlay: OverlayView
@@ -147,6 +147,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        translator.deeplKey = prefs.getString("deeplKey", "")!!.trim()
         translator.prepareOffline { ok -> runOnUiThread { if (ok) refreshStatus() } }
         setupClaude()
 
@@ -176,6 +177,13 @@ class MainActivity : ComponentActivity() {
     private fun showAiDialog() {
         val pad = (16 * resources.displayMetrics.density).toInt()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0) }
+        val deeplTitle = TextView(this).apply { text = "Hızlı çeviri: DeepL"; textSize = 15f }
+        val deeplInput = EditText(this).apply {
+            hint = "DeepL API anahtarı (sonu :fx) — boş bırakılırsa Google"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(prefs.getString("deeplKey", ""))
+        }
+        val aiTitle = TextView(this).apply { text = "Hikâyeyi bilen düzeltme"; textSize = 15f; setPadding(0, pad, 0, 0) }
         val onBox = CheckBox(this).apply { text = "Yapay zekâ çevirisi açık"; isChecked = prefs.getBoolean("aiOn", true) }
         val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
         val rGemini = RadioButton(this).apply { id = View.generateViewId(); text = "Gemini (ücretsiz)" }
@@ -213,11 +221,11 @@ class MainActivity : ComponentActivity() {
         fun showRate() { rateLabel.text = "Sesli okuma hızı: ${"%.1f".format((rateBar.progress + 5) / 10f)}x" }
         showRate()
         rateBar.setOnSeekBarChangeListener(simpleSeek { showRate() })
-        listOf(onBox, group, keyInput, modelInput, help, rateLabel, rateBar, mem).forEach { box.addView(it) }
+        listOf(deeplTitle, deeplInput, aiTitle, onBox, group, keyInput, modelInput, help, rateLabel, rateBar, mem).forEach { box.addView(it) }
         val scroll = ScrollView(this).apply { addView(box) }
 
         AlertDialog.Builder(this)
-            .setTitle("Hikâyeyi bilen çeviri")
+            .setTitle("Ayarlar")
             .setView(scroll)
             .setPositiveButton("Kaydet") { _, _ ->
                 val claudeSel = rClaude.isChecked
@@ -230,6 +238,9 @@ class MainActivity : ComponentActivity() {
                         .putString("geminiModel", modelInput.text.toString().trim().ifEmpty { DEFAULT_GEMINI })
                 }
                 ed.putInt("ttsRate", rateBar.progress + 5)
+                val dk = deeplInput.text.toString().trim()
+                ed.putString("deeplKey", dk)
+                translator.deeplKey = dk
                 ed.apply()
                 tts?.setSpeechRate((rateBar.progress + 5) / 10f)
                 setupClaude()
@@ -245,6 +256,8 @@ class MainActivity : ComponentActivity() {
         val ai = aiTr
         parts.add(if (ai != null) "yapay zekâ açık (${memory.stats()})" else "hızlı çeviri")
         ai?.lastProblem?.let { parts.add(it) }
+        parts.add(if (translator.deeplKey.isNotEmpty()) "DeepL" else "Google")
+        translator.deeplProblem?.let { parts.add(it) }
         if (translator.offlineReady) parts.add("çevrimdışı yedek hazır")
         statusView.text = parts.joinToString(" · ")
     }
@@ -399,7 +412,7 @@ class MainActivity : ComponentActivity() {
         pendingHits = 0
         val (who, body) = TextUtil.splitSpeaker(lastShown)
         statusView.text = "Çevriliyor…"
-        translator.translate(body) { quick ->
+        translator.translate(body, memory.recentEnglish(4)) { quick, engine ->
             runOnUiThread {
                 if (quick == null && aiTr == null) {
                     statusView.text = "Çeviri yapılamadı (internet yok ve çevrimdışı model inmemiş)"
@@ -409,7 +422,8 @@ class MainActivity : ComponentActivity() {
                 val ai = aiTr
                 val entry = Entry(
                     nextId.incrementAndGet(), clock.format(Date()), who, body, quick ?: "…",
-                    if (ai == null) Slang.notes(body) else emptyList()
+                    if (ai == null) Slang.notes(body) else emptyList(),
+                    engine = engine
                 )
                 newestId = entry.id
                 addEntry(entry)
@@ -466,7 +480,7 @@ class MainActivity : ComponentActivity() {
     private fun renderCurrent(e: Entry, speak: Boolean) {
         card.alpha = 1f
         whoView.text = e.who
-        badgeView.text = if (e.ai) "yapay zekâ" else if (aiTr != null) "hızlı · düzeltiliyor" else ""
+        badgeView.text = if (e.ai) "yapay zekâ" else listOf(e.engine, if (aiTr != null) "düzeltiliyor" else "").filter { it.isNotEmpty() }.joinToString(" · ")
         trView.text = e.tr
         enView.text = e.en
         notesView.visibility = if (e.notes.isEmpty()) View.GONE else View.VISIBLE

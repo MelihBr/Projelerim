@@ -42,7 +42,7 @@ Reply with ONLY one JSON object, no other text:
             append("NEW LINE TO TRANSLATE\n")
             append("speaker: ").append(who.ifEmpty { "(unknown)" }).append("\n")
             append("english (OCR): ").append(en).append("\n")
-            append("quick machine translation (may be wrong): ").append(quickTr)
+            append("quick machine translation (usually good; keep its wording unless context, slang or an OCR error shows it is wrong): ").append(quickTr)
         }
         val raw = complete(translateSystem, user, json = true) ?: return null
         val start = raw.indexOf('{')

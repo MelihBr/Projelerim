@@ -65,6 +65,10 @@ class StoryMemory(private val prefs: SharedPreferences) {
             (if (l.who.isNotEmpty()) "${l.who}: " else "") + l.en + "  =>  " + l.tr
         }
 
+    /** Son n İngilizce replik, DeepL'e bağlam olarak. */
+    @Synchronized fun recentEnglish(n: Int): String =
+        recent.toList().takeLast(n).joinToString("\n") { l -> (if (l.who.isNotEmpty()) "${l.who}: " else "") + l.en }
+
     @Synchronized fun stats(): String = "${glossary.size} terim, ${recent.size} son replik" +
         if (summary.isEmpty()) ", özet henüz yok" else ""
 
